@@ -5,9 +5,9 @@ A description of this package.
 ```swift
 intro(title: "Settings")
 
-let output = text(question: "Question example", placeholder: "example", validator: { $0 == "hi" ? .success("") : .failure("fill in hi") })
+let questionResult = text(question: "Question example", placeholder: "example", validator: { $0 == "hi" ? .success("") : .failure("fill in hi") })
 
-_ = select(title: "Picker", options: [
+let pickerResult = select(title: "Picker", options: [
     ("a", value: 1),
     ("b", value: 1),
     ("c", value: 1),
