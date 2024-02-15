@@ -1,60 +1,33 @@
 import ANSITerminal
 
-public struct Selectable<Type> {
-    let title: String
-    let value: Type
-    
-    public init(title: String, value: Type) {
-        self.title = title
-        self.value = value
-    }
-}
+public typealias Selectable<T> = (title: String, value: T)
 
 public func select<Type>(title: String, options: [Selectable<Type>]) -> Type {
     cursorOff()
-    moveLineDown()
-    write("◆".foreColor(81).bold)
-    moveRight()
-    write(title)
-    
-    let currentLine = readCursorPos().row + 1
+    write("\n" + ANSIChar.info + " " + title)
+
+    var firstOption = readCursorPos().row + 1
     let state = OptionState(
-        options: options.enumerated().map { Option(title: $1.title, value: $1.value, line: currentLine + $0) },
-        activeLine: currentLine,
-        rangeOfLines: (currentLine, currentLine + options.count - 1)
+        options: options.enumerated().map { Option(title: $1.title, value: $1.value, line: firstOption + $0) },
+        activeLine: firstOption,
+        rangeOfLines: (firstOption, firstOption + options.count - 1)
     )
 
     options.forEach { selectable in
-        moveLineDown()
-        let isActive = readCursorPos().row == state.activeLine
-
-        write(ANSIChar.activeBracketLine)
-        moveRight()
-        if isActive {
-            write("●".lightGreen)
-        } else {
-            write("○".foreColor(250))
-        }
-        moveRight()
-        
-        if isActive {
-            write(selectable.title)
-        } else {
-            write(selectable.title.foreColor(250))
-        }
+        let isActive = readCursorPos().row + 1 == state.activeLine
+        let indicator = isActive ? ANSIChar.selected : ANSIChar.unselected
+        let title = isActive ? selectable.title : selectable.title.foreColor(250)
+        write("\n\(ANSIChar.activeBracketLine) \(indicator) \(title)")
     }
-    
-    
-    // Close...
-    moveLineDown()
+
+    write("\n" + ANSIChar.activeCloser)
     let bottomLine = readCursorPos().row
-    write("└".foreColor(81))
 
     let reRender = {
         (state.rangeOfLines.minimum...state.rangeOfLines.maximum).forEach { line in
             let isActive = line == state.activeLine
             // Update state indicator colour
-            let stateIndicator = isActive ? "●".lightGreen : "○".foreColor(250)
+            let stateIndicator = isActive ? ANSIChar.selected : ANSIChar.unselected
             writeAt(line, 3, stateIndicator)
 
             // Update picker option title...
@@ -64,6 +37,12 @@ public func select<Type>(title: String, options: [Selectable<Type>]) -> Type {
             }
         }
     }
+
+    // need to reRender right away because new lines might have moved everything up
+    firstOption = readCursorPos().row - options.count
+    state.activeLine = firstOption
+    state.rangeOfLines = (firstOption, firstOption + options.count - 1)
+    reRender()
 
     while true {
         clearBuffer()
@@ -91,7 +70,7 @@ public func select<Type>(title: String, options: [Selectable<Type>]) -> Type {
         }
     }
 
-    cleanUp(startLine: currentLine - 1, endLine: bottomLine)
+    cleanUp(startLine: firstOption - 1, endLine: bottomLine)
 
-    return state.options.first(where: { $0.line == state.activeLine })!.value
+    return options[state.activeLine - firstOption].value
 }

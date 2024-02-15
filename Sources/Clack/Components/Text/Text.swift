@@ -5,54 +5,84 @@ func writeAt(_ row: Int, _ col: Int, _ text: String) {
     write(text)
 }
 
-public struct Validator {
-    let validate: (String) -> Bool
-    let failureString: String
-    
-    public init(validate: @escaping (String) -> Bool, failureString: String) {
-        self.validate = validate
-        self.failureString = failureString
+/// An error type that is presented to the user as an error with parsing their
+/// command-line input.
+public struct ValidatorError: Error, CustomStringConvertible {
+  /// The error message represented by this instance, this string is presented to
+  /// the user when a `ValidationError` is thrown from either; `run()`,
+  /// `validate()` or a transform closure.
+  public internal(set) var message: String
+
+  /// Creates a new validation error with the given message.
+  public init(_ message: String) {
+    self.message = message
+  }
+
+  public var description: String {
+    message
+  }
+}
+
+extension Result where Failure == ValidatorError {
+    /// Allows initialising with just a string so you can do
+    /// `Result.failure("message")` instead of `.failure(.message("message"))`
+    public static func failure(_ message: String) -> Self {
+        .failure(.init(message))
     }
 }
 
-public func text(question: String, placeholder: String = "", validator: Validator? = nil, isSecureEntry: Bool = false) -> String {
+public typealias Validator<T> = (String) -> Result<T, ValidatorError>
+
+public func text(question: String, placeholder: String = "", isSecureEntry: Bool = false) -> String {
+    text(question: question, placeholder: placeholder, validator: { .success($0) }, isSecureEntry: isSecureEntry)
+}
+
+public func text<T: LosslessStringConvertible>(question: String, placeholder: String = "", isSecureEntry: Bool = false) -> T {
+    text(question: question, placeholder: placeholder, validator: {
+        guard let value = T($0) else {
+            return .failure("You must enter a valid \(T.self)")
+        }
+        return .success(value)
+    }, isSecureEntry: isSecureEntry)
+}
+
+public func text<T>(question: String, placeholder: String = "", validator: Validator<T>, isSecureEntry: Bool = false) -> T {
+    precondition(!question.contains("\n"))
+    precondition(!placeholder.contains("\n"))
+
     cursorOn()
-    moveLineDown()
-    let promptStartLine = readCursorPos().row
-    write("◆".foreColor(81).bold)
-    moveRight()
-    write(question)
-    moveLineDown()
-    write(ANSIChar.activeBracketLine)
-    moveLineDown()
-    write(ANSIChar.activeCloser)
-    
+    write("\n" + ANSIChar.info + " " + question)
+    write("\n" + ANSIChar.activeBracketLine)
+    write("\n" + ANSIChar.activeCloser)
+
+    // get pos after writing newlines because scroll might have happened
+    let promptStartLine = readCursorPos().row - 2
     let bottomPos = readCursorPos()
     moveLineUp()
     moveRight(2)
     let initialCursorPosition = readCursorPos()
     write(placeholder.foreColor(244))
     moveTo(initialCursorPosition.row, initialCursorPosition.col)
-    
+
     var validationFailed = false
-    
-    let textInput = readTextInput(
-        validate: validator?.validate ?? { _ in true },
-        validationFailed: {
+
+    let result = readTextInput(
+        validator: validator,
+        validationFailed: { failureString in
             validationFailed = true
             cursorOff()
             let currentPosition = readCursorPos()
             writeAt(promptStartLine, 0, ANSIChar.warn)
             updateBracketColor(fromLine: promptStartLine, toLine: bottomPos.row, withColor: 11)
-            writeAt(bottomPos.row, bottomPos.col + 1, validator?.failureString ?? "")
+            writeAt(bottomPos.row, bottomPos.col + 1, failureString)
             moveTo(currentPosition.row, currentPosition.col)
             cursorOn()
         },
-        onNewCharacter: { char in
+        onInputChange: { input in
             if validationFailed {
                 cursorOff()
                 let currentPosition = readCursorPos()
-                writeAt(promptStartLine, 0, "◆".foreColor(81).bold)
+                writeAt(promptStartLine, 0, ANSIChar.info)
                 updateBracketColor(fromLine: promptStartLine, toLine: bottomPos.row, withColor: 81)
                 moveTo(bottomPos.row, bottomPos.col + 1)
                 clearToEndOfLine()
@@ -60,22 +90,18 @@ public func text(question: String, placeholder: String = "", validator: Validato
                 cursorOn()
                 validationFailed = false
             }
-            write("\(isSecureEntry ? "▪" : char)")
-        },
-        onDelete: { row, col in moveTo(row, col); deleteChar() },
-        removePlaceholder: {
-            moveTo(initialCursorPosition.row, initialCursorPosition.col)
+            let currentPosition = readCursorPos()
+            writeAt(currentPosition.row, 3, input.isEmpty
+                ? placeholder.foreColor(244)
+                : isSecureEntry ? String(repeating: "▪", count: input.count) : input)
             clearToEndOfLine()
-        },
-        showPlaceholder:  {
-            write(placeholder.foreColor(244))
-            moveTo(initialCursorPosition.row, initialCursorPosition.col)
+            moveToColumn(3 + input.count)
         }
     )
-    
+
     cleanUp(startLine: promptStartLine, endLine: bottomPos.row)
-    
-    return textInput
+
+    return result
 }
 
 func updateBracketColor(fromLine: Int, toLine: Int, withColor color: UInt8) {
@@ -85,11 +111,11 @@ func updateBracketColor(fromLine: Int, toLine: Int, withColor color: UInt8) {
 
 func cleanUp(startLine: Int, endLine: Int) {
     cursorOff()
-    
-    writeAt(startLine, 0, "✔".green)
+
+    writeAt(startLine, 0, ANSIChar.success)
     (startLine + 1...endLine).forEach { writeAt($0, 0, ANSIChar.bracketLine) }
-    
+
     moveTo(endLine, 0)
-    
+
     cursorOn()
 }

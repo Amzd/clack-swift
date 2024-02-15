@@ -1,6 +1,6 @@
 import ANSITerminal
 
-enum ANSIChar {
+public enum ANSIChar {
     static let activeBracketLine = "│".foreColor(81)
     static let bracketLine = "│".foreColor(252)
     static let bracketLineNoColour = "│"
@@ -8,5 +8,10 @@ enum ANSIChar {
     static let closer = "└".foreColor(252)
     static let closerNoColour = "└"
     static let activeCloser = "└".foreColor(81)
-    static let warn = "▲".yellow
+
+    public static var warn = "▲".yellow
+    public static var info = "●".foreColor(81).bold // "◆" is not centered in my font
+    public static var success = "✔".green
+    public static var selected = "●".lightGreen
+    public static var unselected = "○".foreColor(250)
 }
