@@ -1,6 +1,6 @@
 # Clack
 
-A description of this package.
+A Swift port of https://github.com/natemoo-re/clack/
 
 ```swift
 intro(title: "Settings")
