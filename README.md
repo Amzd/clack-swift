@@ -5,7 +5,9 @@ A Swift port of https://github.com/natemoo-re/clack/
 ```swift
 intro(title: "Settings")
 
-let questionResult = text(question: "Question example", placeholder: "example", validator: { $0 == "hi" ? .success("") : .failure("fill in hi") })
+let questionResult = text(question: "Question example", placeholder: "example", validator: {
+    $0 == "hi" ? .success("") : .failure("fill in hi")
+})
 
 let pickerResult = select(title: "Picker", options: [
     ("a", value: 1),
